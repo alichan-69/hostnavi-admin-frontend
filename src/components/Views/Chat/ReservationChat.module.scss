@@ -1,0 +1,31 @@
+.message {
+  > div:nth-child(1) {
+    @apply block;
+  }
+  > div:nth-child(2) {
+    > div:nth-child(1) {
+      @apply bg-primary #{!important};
+    }
+    > div:nth-child(2) {
+      > div {
+        @apply block;
+      }
+    }
+  }
+}
+
+.message-input {
+  > div:nth-child(1) {
+    @apply bg-primary;
+    > div > div {
+      @apply bg-primary;
+    }
+  }
+  > div:nth-child(2) {
+    > button {
+      > svg {
+        @apply text-primary;
+      }
+    }
+  }
+}
