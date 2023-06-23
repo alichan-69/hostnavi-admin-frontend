@@ -40,7 +40,7 @@
 │   │   │   ├── DefaultButton.tsx -- デフォルトとなるコンポーネント。コンポーネント名とファイル名は同一にし、先頭にDefaultをつける。
 │   │   │   ├── DangerButton.tsx
 │   │   │   └── index.ts -- エントリーポイント。Partsより二階層以上潜った場所にコンポーネントファイルを格納する場合、作成する。
-│   │   └──DefaultImage.tsx
+│   │   └──DefaultImage.tsx -- 同系統のコンポーネントが存在しない場合、Partsディレクトリに直でコンポーネントファイルを格納する
 │   ├── Templates -- 二つ以上のタグで構成されるコンポーネントを格納するディレクトリ。配下の構成はPartsと同じ。
 │   │   ├── InputGroup
 │   │   │   ├── TextFieldInputGroup.tsx
@@ -59,7 +59,7 @@
 │   │   └── DeleteDialog.tsx
 │   ├── Providers -- プロバイダーを格納するディレクトリ。
 │   │   ├── LoadingProvider.tsx
-│   │   └── index.tsx -- 全てのProvidersディレクトリ内部のプロバイダーでchildrenを囲むコンポーネント。
+│   │   └── index.tsx -- 全てのProvidersディレクトリ内部のプロバイダーでchildrenを囲むコンポーネント。このProvidersを_app.tsxで使用し、配下のコンポーネントを全て囲むことで、全コンポーネントでProvidersで管理している状態を使用できるようにしている。
 │   └── types -- コンポーネントで統一して使用するtypeを格納するディレクトリ。
 │       └── index.d.ts --  エントリーポイント。
 ├── const -- 定数を格納するディレクトリ。
@@ -82,10 +82,10 @@
 │       ├── innInn.d.ts -- 同一系統の型を纏めたファイル
 │       └── userUser.d.ts
 └── utils -- 関数内部でreact-hooksを使用しない関数を格納するディレクトリ
-    ├── api -- 同一系統の関数を格納するディレクトリ
+    ├── api -- 同一系統の関数がまとめられたファイルを格納するディレクトリ
     │   ├── common.ts -- 同一系統の関数を格納するファイル
     │   └── userUser.ts
-    └── validation.ts
+    └── validation.ts -- 同一系統の関数がまとめられたファイルが存在しない場合、直でutilsに関数定義ファイルを保存
 
 
 ```
@@ -145,7 +145,7 @@
 状態管理は以下のルールで行う様にします。
 
 - データの受け渡しの流れをはっきりさせたいため、基本 Provider での状態管理は行わない様にする。認証時に使用するユーザー ID 等、多くのコンポーネントへ関連性なく依存することが予想される状態の場合、Provider を使用する様にする。
-- コンポーネント間での状態共有をしたい時には、props での受け渡しを基本とし、トップレベルのコンポーネントのみで状態を取得し、順に子コンポーネントに状態を渡していく様にする。これにより、無駄な API 通信を行わない様にする。
+- コンポーネント間での状態共有をしたい時には、props での受け渡しを基本とし、トップレベルのコンポーネントのみでAPI通信を行う等して状態を取得し、順に子コンポーネントに状態を渡していく様にする。これにより、無駄な API 通信を行わない様にする。
 
 ## 型付のルール
 
@@ -154,11 +154,13 @@
 
 - `any` 型は基本使用しないようにする
 - `@ts-ignore`、`eslint-disable`は使用しない様にする、やむを得ない場合無視したルール名や無視した理由をコメント内に記載。
-- 型チェックは コミット 前に `husky` で行うようにしているので、引っかかった場合は修正してコミットする。
+- 型チェックは コミット 前に husky で行うようにしているので、引っかかった場合は修正してコミットする。
 
 ## 環境変数の追加方法
 
 環境変数は以下の様に追加しています。
+
+1. 環境変数を以下のルールで追加
 
 - 開発環境、本番環境どちらの環境でも使用する環境変数は`.env.local`に記載。
 
@@ -168,9 +170,54 @@
 
 - クライアント上(ブラウザのコンソール、画面等)に表示したい環境変数には`NEXT_PUBLIC_`を環境変数名の頭につける
 
+- 以下の様にファイル内に環境変数を追加
+
+<b>.env.development</b>
+```
+NEXT_PUBLIC_REST_API_BASE_URL='http://localhost:8080'
+```
+
+2. 環境変数をtsxファイル内で以下の様に呼び出して利用
+
+```tsx
+const url = process.env['NEXT_PUBLIC_REST_API_BASE_URL'];
+```
+
 ## React Hook Form によるフォームへのバリデーション実施方法
 
 フォームでのバリデーション処理は以下の様に実装しています。<br>
+
+1. yupを用いてバリデーションスキーマ定義用関数を作成
+
+<b>src/utils/validation.ts</b>
+
+```ts
+import * as yup from 'yup';
+
+// 1. 文字列用のバリデーションスキーマ定義用関数を定義
+export const yupString = (label: string, max: number) =>
+  yup
+    .string()
+    .required(`${label}を入力してください`)
+    .typeError('文字列を入力してください')
+    .max(max, `${label}は${max}文字以下にしてください`);
+
+// 2. 数値用のバリデーションスキーマ定義用関数を定義
+export const yupNumber = (label: string, max: number, unit: string) =>
+  yup
+    .number()
+    .required(`${label}を入力してください`)
+    .typeError('数字を入力してください')
+    .integer('整数を入力してください')
+    .max(max, `${max}${unit}以下を入力してください`);
+```
+
+2. 実際にフォームコンポーネント内でバリデーションを設定
+
+以下コードはサンプルです。<br>
+実際にFormコンポーネントは存在せず、実際は各フォームに該当するFormPaperコンポーネントが作成されています。
+
+<b>src/components/Views/FormPaper/Form.tsx</b>
 
 ```tsx
 import { Controller, SubmitHandler, useForm } from "react-hook-form";
@@ -262,6 +309,10 @@ export default Form;
 ## WebSocket 通信方法
 
 WebSocket 通信でのデータの送信、取得は以下の様に実装しています。<br>
+以下コードはサンプルです。<br>
+実際にChatコンポーネントは存在しません。
+
+<b>src/components/Views/Chat/Chat.tsx</b>
 
 ```tsx
 import { useEffect, useState } from "react";
@@ -312,7 +363,9 @@ const Chat = function render() {
 ## tailwind 使用方法
 
 各コンポーネントの className でコンポーネントに適用させるスタイルを定義しています。<br>
-しかし、子コンポーネントをラップする親コンポーネントで再度スタイルを定義する際に、tailwind でスタイルを定義すると、スタイルのかぶりが発生する可能性があるため、以下 classOverride 関数でその対策をしています。
+しかし、子コンポーネントをラップする親コンポーネントで再度スタイルを定義する際にtailwind　のクラス でスタイルを定義すると、スタイルのかぶりが発生する可能性があるため、以下 classOverride 関数でその対策をしています。
+
+<b>src/utils/classoverride.ts</b>
 
 ```ts
 import clsx, { ClassValue } from "clsx";
@@ -325,6 +378,8 @@ export const classOverride = (...classNames: ClassValue[]) => {
 ```
 
 使用方法は以下です。
+
+<b>src/components/Parts/Button/DefaultButton.tsx</b>
 
 ```tsx
 import { classOverride } from "../../../utils/classoverride";
